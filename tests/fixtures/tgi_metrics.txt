@@ -1,0 +1,12 @@
+# HELP tgi_queue_size Current queue size
+# TYPE tgi_queue_size gauge
+tgi_queue_size 5
+# HELP tgi_batch_current_size Current batch size
+# TYPE tgi_batch_current_size gauge
+tgi_batch_current_size 8
+# HELP tgi_request_inference_duration_sum Total inference duration
+# TYPE tgi_request_inference_duration_sum counter
+tgi_request_inference_duration_sum 142.75
+# HELP tgi_request_generated_tokens_total Total generated tokens
+# TYPE tgi_request_generated_tokens_total counter
+tgi_request_generated_tokens_total 98500

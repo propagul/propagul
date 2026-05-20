@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "entropy-state"
+version = "0.1.0"
+description = "Crash-resilient state synchronization for multi-agent AI systems. The Redis of AI Agent State."
+readme = "README.md"
+license = {text = "Proprietary"}
+requires-python = ">=3.9"
+authors = [
+    { name = "dweyh" },
+]
+keywords = [
+    "ai-agents",
+    "crdt",
+    "state-sync",
+    "crash-recovery",
+    "multi-agent",
+    "gossip-protocol",
+    "distributed-systems",
+    "crewai",
+    "langgraph",
+    "langchain",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: System :: Distributed Computing",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Typing :: Typed",
+]
+dependencies = [
+    "entropy-state-core>=0.1.0",
+]
+
+[project.optional-dependencies]
+crewai = ["crewai>=1.14,<2.0"]
+langgraph = ["langgraph>=1.2,<2.0", "langgraph-checkpoint>=4.0,<5.0", "langchain-core>=1.4,<2.0"]
+all = ["entropy-state[crewai]", "entropy-state[langgraph]"]
+
+[project.urls]
+Homepage = "https://github.com/dweyh/entropy-state"
+Documentation = "https://github.com/dweyh/entropy-state#readme"
+Issues = "https://github.com/dweyh/entropy-state/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["entropy_state*"]
+exclude = ["entropy_state.server*"]

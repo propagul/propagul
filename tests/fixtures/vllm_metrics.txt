@@ -1,0 +1,18 @@
+# HELP vllm:num_requests_running Number of requests currently being processed
+# TYPE vllm:num_requests_running gauge
+vllm:num_requests_running 3.0
+# HELP vllm:num_requests_waiting Number of requests waiting to be processed
+# TYPE vllm:num_requests_waiting gauge
+vllm:num_requests_waiting 1.0
+# HELP vllm:gpu_cache_usage_perc GPU KV-cache usage in percent (0.0 to 1.0)
+# TYPE vllm:gpu_cache_usage_perc gauge
+vllm:gpu_cache_usage_perc 0.42
+# HELP vllm:cpu_cache_usage_perc CPU KV-cache usage in percent
+# TYPE vllm:cpu_cache_usage_perc gauge
+vllm:cpu_cache_usage_perc 0.0
+# HELP vllm:avg_prompt_throughput Average prompt throughput (tokens/s)
+# TYPE vllm:avg_prompt_throughput gauge
+vllm:avg_prompt_throughput 1250.5
+# HELP vllm:avg_generation_throughput Average generation throughput (tokens/s)
+# TYPE vllm:avg_generation_throughput gauge
+vllm:avg_generation_throughput 85.3

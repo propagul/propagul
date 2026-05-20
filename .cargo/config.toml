@@ -1,0 +1,9 @@
+[build]
+# Remap all local paths in compiled binary to prevent information leakage.
+# /home/dweyh/.cargo/registry/... → "dep"
+# /home/dweyh/entropy-state/src/ → "src"
+rustflags = [
+    "--remap-path-prefix", "/home/dweyh/.cargo/registry/src/=dep/",
+    "--remap-path-prefix", "/home/dweyh/entropy-state/=./",
+    "--remap-path-prefix", "/rustc/=rustc/",
+]

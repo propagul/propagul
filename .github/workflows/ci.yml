@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust-tests:
+    name: Rust Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --all-features
+
+  python-tests:
+    name: Python Tests (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    needs: rust-tests
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install maturin
+        run: pip install maturin
+
+      - name: Build Rust core
+        run: maturin develop
+
+      - name: Install Python SDK
+        run: pip install -e ./python
+
+      - name: Run core tests
+        run: python test_core.py
+
+      - name: Run E2E gossip tests
+        run: python -m pytest tests/test_gossip_e2e.py -v
+
+      - name: Run integration tests
+        run: python -m pytest tests/test_integrations.py -v
+
+  framework-tests:
+    name: Framework E2E (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    needs: python-tests
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: "pinned"
+            crewai-version: "crewai==1.14.4"
+            langgraph-version: "langgraph==1.2.0 langgraph-checkpoint==4.1.0"
+          - name: "latest"
+            crewai-version: "crewai"
+            langgraph-version: "langgraph langgraph-checkpoint"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install maturin + build core
+        run: |
+          pip install maturin
+          maturin develop
+
+      - name: Install SDK + framework deps
+        run: |
+          pip install -e ./python
+          pip install ${{ matrix.crewai-version }} ${{ matrix.langgraph-version }} tiktoken langchain-core
+
+      - name: Run framework E2E tests
+        env:
+          OPENAI_API_KEY: sk-test-dummy
+          LANGCHAIN_TRACING_V2: "false"
+          LANGSMITH_TRACING: "false"
+        run: python tests/test_e2e_frameworks.py
+
+      # Allow 'latest' to fail without blocking CI
+      - name: Annotate latest failure
+        if: failure() && matrix.name == 'latest'
+        run: |
+          echo "::warning::Latest framework versions broke compatibility. Check upstream changelogs."

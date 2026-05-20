@@ -1,0 +1,11 @@
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "llama-3.1-8b-instruct-q4_k_m",
+      "object": "model",
+      "created": 1700000000,
+      "owned_by": "llamacpp"
+    }
+  ]
+}

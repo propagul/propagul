@@ -1,0 +1,17 @@
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF/Meta-Llama-3-8B-Instruct-Q4_K_M.gguf",
+      "object": "model",
+      "created": 1700000000,
+      "owned_by": "lmstudio"
+    },
+    {
+      "id": "TheBloke/Mistral-7B-Instruct-v0.2-GGUF/mistral-7b-instruct-v0.2.Q5_K_M.gguf",
+      "object": "model",
+      "created": 1700000000,
+      "owned_by": "lmstudio"
+    }
+  ]
+}

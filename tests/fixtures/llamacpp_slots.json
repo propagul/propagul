@@ -1,0 +1,42 @@
+[
+  {
+    "id": 0,
+    "state": 1,
+    "is_processing": true,
+    "n_past": 128,
+    "n_remaining": -1,
+    "prompt": "Hello",
+    "next_token": {"text": " world"},
+    "model": "/models/llama-3.1-8b-instruct-q4_k_m.gguf"
+  },
+  {
+    "id": 1,
+    "state": 0,
+    "is_processing": false,
+    "n_past": 0,
+    "n_remaining": 0,
+    "prompt": "",
+    "next_token": {"text": ""},
+    "model": ""
+  },
+  {
+    "id": 2,
+    "state": 1,
+    "is_processing": true,
+    "n_past": 256,
+    "n_remaining": -1,
+    "prompt": "Write a poem",
+    "next_token": {"text": " about"},
+    "model": "/models/llama-3.1-8b-instruct-q4_k_m.gguf"
+  },
+  {
+    "id": 3,
+    "state": 0,
+    "is_processing": false,
+    "n_past": 0,
+    "n_remaining": 0,
+    "prompt": "",
+    "next_token": {"text": ""},
+    "model": ""
+  }
+]

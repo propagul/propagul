@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "propagul-mesh"
+version = "0.8.3"
+description = "Fleet management dashboard for local AI inference servers. Monitor Ollama, vLLM, and llama.cpp across your machines."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+keywords = [
+    "ollama", "vllm", "llama-cpp", "fleet-management", "gpu-monitoring",
+    "ai-inference", "local-llm", "dashboard", "mesh",
+    "crdt", "p2p", "gossip", "state-sync",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: System :: Monitoring",
+    "Topic :: System :: Distributed Computing",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "redis>=4.0.0",
+    "hiredis>=2.0.0",
+]
+
+[project.scripts]
+propagul-mesh = "propagul.mesh.cli:main"
+
+[project.urls]
+Homepage = "https://cloud.propagul.dev"
+Repository = "https://github.com/propagul/propagul-mesh"
+Documentation = "https://github.com/propagul/propagul-mesh#readme"
+Issues = "https://github.com/propagul/propagul-mesh/issues"
+
+[tool.setuptools.packages.find]
+where = ["python"]
+include = [
+    "propagul",
+    "propagul.mesh",
+    "propagul.mesh.backends",
+    "propagul.integrations",
+    # Core SDK (CRDT, gossip, transport) — included for state sync features
+    # propagul.server is EXCLUDED — proprietary Cloud Peer, never shipped via PyPI
+]
