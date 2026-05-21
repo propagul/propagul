@@ -175,8 +175,8 @@ def main() -> None:
         help="API key for dashboard (optional — without it, agent runs local-only)",
     )
     p_start.add_argument(
-        "--dashboard-url", default="https://cloud.propagul.dev",
-        help="Dashboard URL (default: cloud.propagul.dev)",
+        "--dashboard-url", default="https://fleet.propagul.dev",
+        help="Dashboard URL (default: fleet.propagul.dev)",
     )
     p_start.add_argument(
         "--interval", type=int, default=10,

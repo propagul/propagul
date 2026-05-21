@@ -39,7 +39,7 @@ dependencies = [
 propagul-mesh = "propagul.mesh.cli:main"
 
 [project.urls]
-Homepage = "https://cloud.propagul.dev"
+Homepage = "https://fleet.propagul.dev"
 Repository = "https://github.com/propagul/propagul-mesh"
 Documentation = "https://github.com/propagul/propagul-mesh#readme"
 Issues = "https://github.com/propagul/propagul-mesh/issues"

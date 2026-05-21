@@ -26,7 +26,7 @@ pip install propagul-mesh
 propagul-mesh start --api-key pg_live_your_key
 
 # 3. Open your dashboard
-# → https://cloud.propagul.dev
+# → https://fleet.propagul.dev
 ```
 
 Your node appears in the dashboard within 10 seconds. GPU temps, VRAM, loaded models — all live.
@@ -130,7 +130,7 @@ Ollama's native API is automatically translated to OpenAI format.
 | `PROPAGUL_GOSSIP_SECRET` | Recommended | Shared secret for gossip authentication |
 | `PROPAGUL_RESEND_API_KEY` | No | Resend.com API key for email alerts |
 | `PROPAGUL_ALERT_EMAIL` | No | Email address for health alerts |
-| `PROPAGUL_PUBLIC_HOST` | No | Public hostname (default: `cloud.propagul.dev`) |
+| `PROPAGUL_PUBLIC_HOST` | No | Public hostname (default: `fleet.propagul.dev`) |
 | `PROPAGUL_ALLOW_PLAINTEXT` | No | Set `true` for dev without TLS |
 
 ## How It Compares

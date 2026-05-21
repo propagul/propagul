@@ -36,7 +36,7 @@ logger = logging.getLogger("propagul.mesh.agent")
 # Defaults
 DEFAULT_POLL_INTERVAL = 10  # seconds
 DEFAULT_HEARTBEAT_INTERVAL = 30  # seconds
-DEFAULT_DASHBOARD_URL = "https://cloud.propagul.dev"
+DEFAULT_DASHBOARD_URL = "https://fleet.propagul.dev"
 
 
 @dataclass

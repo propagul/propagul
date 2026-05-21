@@ -271,7 +271,7 @@ class AgentStateStore:
     def connect_to_cloud(
         self,
         api_key: str,
-        cloud_host: str = "cloud.propagul.dev",
+        cloud_host: str = "fleet.propagul.dev",
         cloud_api_port: int = 443,
     ) -> None:
         """Connect to the Propagul cloud peer.
