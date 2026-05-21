@@ -45,6 +45,8 @@ def _redis_test_isolation(monkeypatch):
         pass  # Redis not available — skip flush, tests will fail naturally
 
     # Patch redis_store to use the test DB for all server code
+    # NOTE: propagul.server is in the private repo (Open Core split).
+    # This patch is only active when server code is installed alongside.
     try:
         from propagul.server import redis_store
 
@@ -60,7 +62,7 @@ def _redis_test_isolation(monkeypatch):
         monkeypatch.setattr(redis_store, "_redis_pool", None)
         monkeypatch.setattr(redis_store, "_redis_url", None)
     except ImportError:
-        pass  # redis_store not importable in this context
+        pass  # propagul.server not installed (Open Core: private repo)
 
     yield
 
@@ -82,9 +84,6 @@ collect_ignore = [
     "test_p2p_checkpointer.py",
     "test_e2e_frameworks.py",  # Needs .venv311 (CrewAI/LangGraph not in 3.9)
     "test_integrations.py",
-    "test_server.py",
-    "test_http_api.py",
-    "test_persistence_partition.py",
     "test_p2p_python.py",
     "test_gossip_e2e.py",  # TCP gossip tests hang under pytest's event loop
 ]

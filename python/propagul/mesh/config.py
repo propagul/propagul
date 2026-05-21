@@ -12,6 +12,7 @@ Keys use namespace prefixes for isolation:
     desired:model:{name}    → "pull" or "delete"
     node:{id}:pref:{key}    → preference value
     fleet:setting:{key}     → fleet-wide setting
+    model:{name}:setting:{key} → per-model setting
 
 Persistence:
     CRDT snapshot is saved to disk as JSON on every mutation.
@@ -42,6 +43,7 @@ logger = logging.getLogger("propagul.mesh.config")
 _NS_DESIRED_MODEL = "desired:model:"
 _NS_NODE_PREF = "node:{node_id}:pref:"
 _NS_FLEET_SETTING = "fleet:setting:"
+_NS_MODEL_SETTING = "model:"  # model:{name}:setting:{key}
 
 
 class FleetConfigMap:
@@ -143,6 +145,52 @@ class FleetConfigMap:
                 val = self._crdt.get(key)
                 if val is not None:
                     result[pref_key] = val
+        return result
+
+    # ─── Model Settings ───────────────────────────────────────────
+
+    def set_model_setting(self, model_name: str, setting_key: str, value: str) -> None:
+        """Set a per-model configuration value.
+
+        Args:
+            model_name: The model name (e.g., "llama3.1:8b").
+            setting_key: Setting key (e.g., "num_ctx").
+            value: Setting value as string. Empty string clears the setting.
+        """
+        key = f"model:{model_name}:setting:{setting_key}"
+        if value.strip() == "":
+            self._crdt.delete(key)
+        else:
+            self._crdt.set(key, value)
+        self._auto_save()
+
+    def get_model_setting(self, model_name: str, setting_key: str) -> Optional[str]:
+        """Get a per-model configuration value."""
+        key = f"model:{model_name}:setting:{setting_key}"
+        return self._crdt.get(key)
+
+    def get_all_model_settings(self) -> Dict[str, Dict[str, str]]:
+        """Get all per-model settings.
+
+        Returns:
+            dict mapping model_name → {setting_key: value}.
+        """
+        result: Dict[str, Dict[str, str]] = {}
+        prefix = "model:"
+        sep = ":setting:"
+        for key in self._crdt.keys():
+            if key.startswith(prefix) and sep in key:
+                # model:{name}:setting:{key}
+                after_prefix = key[len(prefix):]
+                idx = after_prefix.find(sep)
+                if idx > 0:
+                    model_name = after_prefix[:idx]
+                    setting_key = after_prefix[idx + len(sep):]
+                    val = self._crdt.get(key)
+                    if val is not None:
+                        if model_name not in result:
+                            result[model_name] = {}
+                        result[model_name][setting_key] = val
         return result
 
     # ─── Fleet Settings ───────────────────────────────────────────

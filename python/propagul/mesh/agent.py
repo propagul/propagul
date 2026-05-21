@@ -383,6 +383,7 @@ class MeshAgent:
         }
         self._pull_in_progress = False  # Guard against concurrent reconciliation
         self._cancel_pulls: set = set()  # Models to cancel pulling
+        self._proxy_config = None  # Set by _start_proxy; updated by _sync_config
 
         # LAN-routable IP for multi-machine fleet routing.
         # When this agent's backend URLs are sent to the dashboard, localhost
@@ -477,6 +478,8 @@ class MeshAgent:
             backend_url=backend_url,
             backend_auth=self._proxy_backend_auth,
         )
+        # Store reference so _apply_fleet_settings() can update keep_alive
+        self._proxy_config = config
 
         logger.info(
             "Starting local proxy on port %d → %s (%s)",
@@ -530,7 +533,10 @@ class MeshAgent:
         while self._running:
             if self._api_key:
                 try:
-                    self._fetch_and_execute_commands()
+                    # AG-02: Must run in thread — urllib blocks the event
+                    # loop, which delays poll-loop scheduling by up to 5s
+                    # per call (measured: caused 37s heartbeat cycles).
+                    await asyncio.to_thread(self._fetch_and_execute_commands)
                 except Exception as e:
                     logger.debug("Command poll error: %s", e)
 
@@ -559,39 +565,65 @@ class MeshAgent:
 
         backends_data: list[dict] = []
 
-        # Poll each detected backend
-        for backend in self._detected_backends:
+        # Localhost backends respond in <100ms. Anything >1s is unreachable
+        # or a phantom detection. 4 internal calls × 1s = 4s max per backend.
+        _BACKEND_POLL_TIMEOUT = 1.0
+
+        # AG-03: Poll backends concurrently. Sequential polling with 3+
+        # backends caused 13s+ collection time (llama_cpp alone: 8s due
+        # to 4 internal HTTP calls all timing out). Concurrent polling
+        # reduces total to max(individual) instead of sum(individual).
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        def _poll_single_backend(backend):
+            """Poll a single backend. Returns dict or None on error."""
             url = self._backend_url or backend.url
-            if backend.name == "ollama":
-                status = ollama_backend.poll(base_url=url)
-                backends_data.append(status.to_dict())
-            elif backend.name == "vllm":
-                telemetry = vllm_backend.collect_telemetry(base_url=url)
-                backends_data.append(telemetry)
-            elif backend.name == "tgi":
-                telemetry = tgi_backend.collect_telemetry(base_url=url)
-                backends_data.append(telemetry)
-            elif backend.name == "lm_studio":
-                telemetry = lm_studio_backend.collect_telemetry(base_url=url)
-                backends_data.append(telemetry)
-            elif backend.name == "llama_cpp":
-                telemetry = llamacpp_backend.collect_telemetry(base_url=url)
-                backends_data.append(telemetry)
-            else:
-                # Unknown backend — basic telemetry stub
-                backends_data.append({
-                    "backend": backend.name,
-                    "url": backend.url,
-                    "online": True,
-                    "version": backend.version,
-                    "model_count": 0,
-                    "running_count": 0,
-                    "models": [],
-                })
+            try:
+                if backend.name == "ollama":
+                    return ollama_backend.poll(base_url=url, timeout=_BACKEND_POLL_TIMEOUT).to_dict()
+                elif backend.name == "vllm":
+                    return vllm_backend.collect_telemetry(base_url=url, timeout=_BACKEND_POLL_TIMEOUT)
+                elif backend.name == "tgi":
+                    return tgi_backend.collect_telemetry(base_url=url, timeout=_BACKEND_POLL_TIMEOUT)
+                elif backend.name == "lm_studio":
+                    return lm_studio_backend.collect_telemetry(base_url=url, timeout=_BACKEND_POLL_TIMEOUT)
+                elif backend.name == "llama_cpp":
+                    return llamacpp_backend.collect_telemetry(base_url=url, timeout=_BACKEND_POLL_TIMEOUT)
+                else:
+                    return {
+                        "backend": backend.name,
+                        "url": backend.url,
+                        "online": True,
+                        "version": backend.version,
+                        "model_count": 0,
+                        "running_count": 0,
+                        "models": [],
+                    }
+            except Exception as e:
+                logger.debug("Backend poll failed (%s): %s", backend.name, e)
+                return None
+
+        if self._detected_backends:
+            # 5s total: covers worst-case llama_cpp (4 calls × 1s) + headroom.
+            # Backends that finish early are collected immediately.
+            with ThreadPoolExecutor(max_workers=len(self._detected_backends)) as pool:
+                futures = {
+                    pool.submit(_poll_single_backend, b): b
+                    for b in self._detected_backends
+                }
+                try:
+                    for future in as_completed(futures, timeout=5):
+                        result = future.result()
+                        if result is not None:
+                            backends_data.append(result)
+                except TimeoutError:
+                    # Some backends didn't finish in time — collect what we have
+                    logger.debug("Backend poll timeout: %d/%d completed",
+                                 len(backends_data), len(futures))
 
         # If manual URL provided but no auto-detect, try Ollama directly
         if not self._detected_backends and self._backend_url:
-            status = ollama_backend.poll(base_url=self._backend_url)
+            status = ollama_backend.poll(base_url=self._backend_url, timeout=_BACKEND_POLL_TIMEOUT)
             backends_data.append(status.to_dict())
 
         # GPU metrics
@@ -687,7 +719,7 @@ class MeshAgent:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with urllib.request.urlopen(req, timeout=5) as resp:
                 if resp.status != 200:
                     logger.warning("Dashboard push returned %d", resp.status)
                 else:
@@ -709,6 +741,9 @@ class MeshAgent:
 
         # Config sync: pull fleet config CRDT from dashboard, merge locally
         self._sync_config()
+
+        # Apply fleet settings to proxy (keep_alive, etc.)
+        self._apply_fleet_settings()
 
         # Auto-pull: reconcile desired models against local state (async, non-blocking)
         if self._auto_pull and not self._pull_in_progress:
@@ -855,6 +890,126 @@ class MeshAgent:
         """Access the local CRDT config map (for inspection/testing)."""
         return self._config_map
 
+    def _apply_fleet_settings(self) -> None:
+        """Apply fleet settings from CRDT config to runtime components.
+
+        Currently applies:
+            - ollama_keep_alive → ProxyConfig.ollama_keep_alive
+              Controls how long Ollama keeps models loaded in VRAM
+              after the last request. Accepted formats: "5m", "30s",
+              "1h", "0" (immediate unload), "-1" (never unload).
+            - default_context_length → ProxyConfig.default_num_ctx
+              Ollama context window size (num_ctx). Integer, range
+              512–262144. Injected into options.num_ctx per request.
+
+        Called after every _sync_config() in the heartbeat cycle.
+        Thread-safety: CPython attribute assignment is atomic (GIL).
+        The proxy reads these on each request — no lock needed.
+        """
+        # ── keep_alive ──
+        keep_alive = self._config_map.get_fleet_setting("ollama_keep_alive")
+
+        # Empty string = user disabled the override (unchecked toggle).
+        # Treat as None → use Ollama server default (5 minutes).
+        if keep_alive is not None and keep_alive.strip() == "":
+            keep_alive = None
+
+        if keep_alive is not None:
+            # Validate: Ollama accepts "<number>[s|m|h]", "0", "-1"
+            # Reject obviously invalid values to prevent config injection.
+            import re
+            if not re.match(r'^-?\d+[smh]?$', keep_alive):
+                logger.warning(
+                    "Invalid ollama_keep_alive value '%s' — ignoring",
+                    keep_alive,
+                )
+                keep_alive = None
+
+        if self._proxy_config is not None:
+            old = self._proxy_config.ollama_keep_alive
+            self._proxy_config.ollama_keep_alive = keep_alive
+            if old != keep_alive:
+                if keep_alive is not None:
+                    logger.info(
+                        "Fleet setting applied: ollama_keep_alive=%s "
+                        "(models will stay loaded for %s after last request)",
+                        keep_alive, keep_alive,
+                    )
+                elif old is not None:
+                    logger.info(
+                        "Fleet setting cleared: ollama_keep_alive disabled "
+                        "(using Ollama server default: 5 minutes)",
+                    )
+
+        # ── default_context_length → num_ctx ──
+        ctx_raw = self._config_map.get_fleet_setting("default_context_length")
+        num_ctx: "Optional[int]" = None
+
+        if ctx_raw is not None and str(ctx_raw).strip() != "":
+            try:
+                num_ctx = int(ctx_raw)
+            except (ValueError, TypeError):
+                logger.warning(
+                    "Invalid default_context_length value '%s' — ignoring",
+                    ctx_raw,
+                )
+                num_ctx = None
+
+            # Bounds check: Ollama supports num_ctx 512–262144 (256K).
+            # Values outside this range would cause OOM or be silently
+            # ignored by Ollama. Reject with warning.
+            if num_ctx is not None and (num_ctx < 512 or num_ctx > 262144):
+                logger.warning(
+                    "default_context_length=%d out of range (512–262144) "
+                    "— ignoring to prevent OOM",
+                    num_ctx,
+                )
+                num_ctx = None
+                num_ctx = None
+
+        if self._proxy_config is not None:
+            old_ctx = self._proxy_config.default_num_ctx
+            self._proxy_config.default_num_ctx = num_ctx
+            if old_ctx != num_ctx:
+                if num_ctx is not None:
+                    logger.info(
+                        "Fleet setting applied: default_num_ctx=%d "
+                        "(context window set to %d tokens)",
+                        num_ctx, num_ctx,
+                    )
+                elif old_ctx is not None:
+                    logger.info(
+                        "Fleet setting cleared: default_num_ctx disabled "
+                        "(using Ollama model default)",
+                    )
+
+        # ── per-model num_ctx overrides ──
+        model_settings = self._config_map.get_all_model_settings()
+        new_overrides: dict = {}
+        for model_name, settings in model_settings.items():
+            raw = settings.get("num_ctx")
+            if raw is not None:
+                try:
+                    val = int(raw)
+                except (ValueError, TypeError):
+                    continue
+                if 512 <= val <= 262144:
+                    new_overrides[model_name] = val
+
+        if self._proxy_config is not None:
+            old_overrides = self._proxy_config.model_num_ctx_overrides
+            # Atomic dict swap (GIL-safe)
+            self._proxy_config.model_num_ctx_overrides = new_overrides
+            if old_overrides != new_overrides:
+                if new_overrides:
+                    logger.info(
+                        "Per-model num_ctx overrides: %s",
+                        {k: v for k, v in new_overrides.items()},
+                    )
+                elif old_overrides:
+                    logger.info("Per-model num_ctx overrides cleared")
+
+
     def _sync_config(self) -> None:
         """Sync fleet config CRDT with the dashboard.
 
@@ -875,7 +1030,7 @@ class MeshAgent:
             headers={"Authorization": f"Bearer {self._api_key}"},
         )
         try:
-            with urllib.request.urlopen(req, timeout=5) as resp:
+            with urllib.request.urlopen(req, timeout=2) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
                 server_snapshot = data.get("snapshot")
                 if isinstance(server_snapshot, dict):
@@ -902,7 +1057,7 @@ class MeshAgent:
                 method="POST",
             )
             try:
-                with urllib.request.urlopen(push_req, timeout=5) as resp:
+                with urllib.request.urlopen(push_req, timeout=2) as resp:
                     result = json.loads(resp.read().decode("utf-8"))
                     # Merge the server's response back (bidirectional)
                     merged_snapshot = result.get("snapshot")

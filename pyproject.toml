@@ -52,5 +52,5 @@ include = [
     "propagul.mesh.backends",
     "propagul.integrations",
     # Core SDK (CRDT, gossip, transport) — included for state sync features
-    # propagul.server is EXCLUDED — proprietary Cloud Peer, never shipped via PyPI
+    # propagul.server lives in a separate PRIVATE repo (Open Core model)
 ]

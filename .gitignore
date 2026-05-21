@@ -1,21 +1,47 @@
+# === Build artifacts ===
 /target
+dist/
+build/
+*.egg-info/
+*.egg
+*.whl
 
-# Byte-compiled / optimized / DLL files
+# === Python ===
 __pycache__/
 .pytest_cache/
 *.py[cod]
-
-# C extensions
 *.so
-
-# Distribution / packaging
 .Python
+htmlcov/
+.tox/
+.coverage
+.cache
+nosetests.xml
+coverage.xml
+
+# === Virtual environments ===
 .venv/
+.venv311/
 env/
+venv/
 bin/
-build/
+
+# === IDE ===
+.vscode/
+.idea/
+.project
+.pydevproject
+.ropeproject
+aesm.code-workspace
+
+# === OS ===
+.DS_Store
+*.log
+*.pot
+*.mo
+
+# === Distribution ===
 develop-eggs/
-dist/
 eggs/
 lib/
 lib64/
@@ -24,49 +50,59 @@ sdist/
 var/
 include/
 man/
-venv/
-*.egg-info/
 .installed.cfg
-*.egg
 
-# Installer logs
+# === Installer logs ===
 pip-log.txt
 pip-delete-this-directory.txt
 pip-selfcheck.json
 
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.coverage
-.cache
-nosetests.xml
-coverage.xml
-
-# Translations
-*.mo
-
-# Mr Developer
-.mr.developer.cfg
-.project
-.pydevproject
-
-# Rope
-.ropeproject
-
-# Django stuff:
-*.log
-*.pot
-
-.DS_Store
-
-# Sphinx documentation
+# === Sphinx ===
 docs/_build/
 
-# PyCharm
-.idea/
-
-# VSCode
-.vscode/
-
-# Pyenv
+# === Pyenv ===
 .python-version
+
+# ============================================================
+# PROPRIETARY / INTERNAL — NEVER COMMIT TO PUBLIC REPO
+# ============================================================
+
+# Server code (proprietary — lives in propagul-server repo)
+python/propagul/server/
+
+# Internal deployment configs (nginx, systemd, TLS — server-specific)
+deploy/
+
+# Internal project management docs
+PROJECT_STATUS.md
+PIVOT_PLAN.md
+Routing-Strategie.md
+
+# Internal docs (pitch, market research, dashboard design)
+docs/FEEDBACK_FOR_PITCH.md
+docs/PROPAGUL_MESH_CONCEPT.md
+docs/PRODUCT.md
+docs/Propagul Dashboard.md
+docs/Propagul Dashboard*.md
+docs/Privacy-Safe Inference.md
+docs/Scorecard.md
+docs/buyer_potential.md
+docs/connections.md
+docs/design_website.md
+docs/implementation.md
+docs/landing_page.md
+docs/deploy_agent.py
+docs/runpod_cmd.py
+
+# One-off dev/patch scripts (not part of SDK)
+patch_*.py
+fix.py
+fix_js.py
+
+# Standalone test scripts (server-specific, not in test suite)
+test_auth.py
+test_multi_tenant_registry.py
+test_redis_fallback.py
+
+# Logo assets (separate licensing)
+logo/

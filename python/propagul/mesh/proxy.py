@@ -174,6 +174,20 @@ class ProxyConfig:
         self.backend_url = backend_url.rstrip("/")
         self.backend_auth = backend_auth  # Fixed auth for backend requests
         self.thinking_budget = thinking_budget
+        # Fleet-controlled Ollama keep_alive override.
+        # Ollama duration format: "5m", "30s", "1h", "0" (immediate unload).
+        # None = use Ollama default (5 minutes).
+        # Updated by agent after each config sync.
+        self.ollama_keep_alive: Optional[str] = None
+        # Fleet-controlled default context length (Ollama num_ctx).
+        # Injected into options.num_ctx on every Ollama /api/chat request.
+        # None = use Ollama model default (typically 2048-4096).
+        # Updated by agent after each config sync.
+        self.default_num_ctx: Optional[int] = None
+        # Per-model context length overrides (Ollama num_ctx).
+        # Maps model name → num_ctx value. Overrides default_num_ctx.
+        # Updated by agent after each config sync.
+        self.model_num_ctx_overrides: dict = {}
 
 
 # ---------------------------------------------------------------------------
@@ -300,8 +314,10 @@ def _json_error(status: int, message: str) -> bytes:
 def _translate_openai_to_ollama_chat(
     openai_body: dict,
     thinking_budget: int = _DEFAULT_THINKING_BUDGET,
+    keep_alive: Optional[str] = None,
+    num_ctx: Optional[int] = None,
 ) -> dict:
-    """Translate OpenAI /v1/chat/completions request → Ollama /api/chat.
+    """Translate OpenAI /v1/chat/completions request -> Ollama /api/chat.
 
     OpenAI format:
         {"model": "llama3.1:8b", "messages": [...], "stream": true, ...}
@@ -321,6 +337,14 @@ def _translate_openai_to_ollama_chat(
         ``thinking_budget`` so the model has room to reason AND produce
         visible output. For unknown models with low max_tokens,
         we omit ``num_predict`` entirely to let Ollama use its default.
+
+    Args:
+        keep_alive: Ollama keep_alive override (e.g. "5m", "30s", "0").
+            Controls how long the model stays loaded in VRAM after the request.
+            None = use Ollama server default (typically 5 minutes).
+        num_ctx: Ollama context window size override.
+            Injected into options.num_ctx. Controls how many tokens the
+            model can see at once. None = use Ollama model default.
     """
     model = openai_body.get("model", "")
     ollama_req = {
@@ -328,6 +352,16 @@ def _translate_openai_to_ollama_chat(
         "messages": openai_body.get("messages", []),
         "stream": openai_body.get("stream", False),
     }
+
+    # Fleet-controlled keep_alive override: inject as top-level key.
+    # Ollama accepts keep_alive on /api/chat and /api/generate.
+    # Allowed formats: "5m", "30s", "1h", "0", "-1" (never unload).
+    if keep_alive is not None:
+        # Normalize: "0" → integer 0 for immediate unload
+        if keep_alive == "0":
+            ollama_req["keep_alive"] = 0
+        else:
+            ollama_req["keep_alive"] = keep_alive
 
     # Forward compatible parameters
     if "temperature" in openai_body:
@@ -346,6 +380,14 @@ def _translate_openai_to_ollama_chat(
     if "stop" in openai_body:
         ollama_req["options"] = ollama_req.get("options", {})
         ollama_req["options"]["stop"] = openai_body["stop"]
+
+    # Fleet-controlled default context window (num_ctx).
+    # Injected into options.num_ctx — controls how many tokens the model
+    # can see at once. Only applied as a fleet default; per-request
+    # num_ctx from the client (if any) would need separate handling.
+    if num_ctx is not None:
+        ollama_req["options"] = ollama_req.get("options", {})
+        ollama_req["options"]["num_ctx"] = num_ctx
 
     return ollama_req
 
@@ -817,6 +859,19 @@ class BackendRouter:
     # Ollama-specific handlers
     # -------------------------------------------------------------------
 
+    def _resolve_num_ctx(self, model: str) -> "Optional[int]":
+        """Resolve num_ctx: per-model override → fleet default → None.
+
+        Priority:
+            1. Per-model override (model_num_ctx_overrides[model])
+            2. Fleet-wide default (default_num_ctx)
+            3. None (use Ollama model default)
+        """
+        per_model = self.config.model_num_ctx_overrides.get(model)
+        if per_model is not None:
+            return per_model
+        return self.config.default_num_ctx
+
     async def _ollama_chat_sync(
         self,
         openai_body: dict,
@@ -829,7 +884,11 @@ class BackendRouter:
         Runs the blocking HTTP call in a thread executor to avoid
         blocking the asyncio event loop.
         """
-        ollama_req = _translate_openai_to_ollama_chat(openai_body, self.config.thinking_budget)
+        ollama_req = _translate_openai_to_ollama_chat(
+            openai_body, self.config.thinking_budget,
+            keep_alive=self.config.ollama_keep_alive,
+            num_ctx=self._resolve_num_ctx(model),
+        )
         ollama_req["stream"] = False
 
         auth = self._backend_auth()
@@ -868,7 +927,11 @@ class BackendRouter:
         lines and pushes them to an asyncio.Queue with backpressure.
         The async consumer awaits queue.get() — zero per-line executor calls.
         """
-        ollama_req = _translate_openai_to_ollama_chat(openai_body, self.config.thinking_budget)
+        ollama_req = _translate_openai_to_ollama_chat(
+            openai_body, self.config.thinking_budget,
+            keep_alive=self.config.ollama_keep_alive,
+            num_ctx=self._resolve_num_ctx(openai_body.get('model', '')),
+        )
         ollama_req["stream"] = True
 
         # Stable stream ID (all chunks share same ID per OpenAI spec)
