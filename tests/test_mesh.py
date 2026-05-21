@@ -1756,16 +1756,23 @@ class TestDashboardRendering:
         assert "Activity" in html
 
     def test_batch_delete_button_in_model_table(self):
-        """Batch delete button appears in model table."""
+        """Batch delete button appears when model is on multiple nodes."""
         from propagul.server.dashboard_web import _render_model_table
-        models = [{
-            "name": "llama3:8b", "size_gb": 4.7, "parameter_size": "8B",
-            "quantization": "Q4_0", "node_id": "n1", "node_status": "online",
-            "backend": "ollama",
-        }]
+        models = [
+            {
+                "name": "llama3:8b", "size_gb": 4.7, "parameter_size": "8B",
+                "quantization": "Q4_0", "node_id": "n1", "node_status": "online",
+                "backend": "ollama",
+            },
+            {
+                "name": "llama3:8b", "size_gb": 4.7, "parameter_size": "8B",
+                "quantization": "Q4_0", "node_id": "n2", "node_status": "online",
+                "backend": "ollama",
+            },
+        ]
         html = _render_model_table(models)
         assert "/dashboard/api/fleet/delete" in html
-        assert ">All</button>" in html
+        assert ">Delete All</button>" in html
 
 
 class TestNodeModelNames:
