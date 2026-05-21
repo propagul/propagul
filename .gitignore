@@ -106,3 +106,9 @@ test_redis_fallback.py
 
 # Logo assets (separate licensing)
 logo/
+
+# Internal documentation (never push — single source of truth stays local)
+CHANGELOG.md
+
+# Additional venv artifacts
+.venv311/
