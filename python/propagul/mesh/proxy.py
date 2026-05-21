@@ -87,7 +87,11 @@ def _validate_backend_url(url: str) -> None:
         - "localhost" (hostname)
         - Any loopback IP (127.0.0.0/8, ::1)
         - Any private IP (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, fc00::/7)
-        - Link-local (169.254.0.0/16, fe80::/10)
+        - Tailscale/CGNAT (100.64.0.0/10) — Python <3.11 doesn't classify
+          this as private, but Tailscale uses it for mesh networking.
+
+    Blocked explicitly:
+        - Link-local (169.254.0.0/16, fe80::/10) — includes cloud metadata
 
     Raises ValueError if the URL points to a non-local address.
     """
@@ -114,13 +118,26 @@ def _validate_backend_url(url: str) -> None:
     if addr.is_loopback or addr.is_private:
         return
 
-    # Also allow link-local (169.254.x.x, fe80::)
+    # Block link-local (169.254.0.0/16, fe80::/10) — cloud metadata
+    # endpoint 169.254.169.254 must not be reachable. No legitimate
+    # use-case for fleet backends on link-local IPs.
     if addr.is_link_local:
-        return
+        raise ValueError(
+            f"SSRF blocked: {host} is a link-local address. "
+            f"Cloud metadata endpoint 169.254.169.254 is explicitly blocked."
+        )
+
+    # Allow Tailscale/CGNAT range (100.64.0.0/10, RFC 6598).
+    # Python <3.11 does NOT classify this as is_private.
+    # Tailscale assigns all nodes IPs in 100.64.0.0/10 for mesh routing.
+    if isinstance(addr, _ipaddress.IPv4Address):
+        _CGNAT = _ipaddress.IPv4Network("100.64.0.0/10")
+        if addr in _CGNAT:
+            return
 
     raise ValueError(
         f"SSRF blocked: {host} is not a local/private address. "
-        f"Only localhost, loopback, and RFC1918/ULA IPs are allowed."
+        f"Only localhost, loopback, RFC1918/ULA, and Tailscale (100.64/10) IPs are allowed."
     )
 
 

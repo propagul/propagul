@@ -2344,7 +2344,7 @@ class TestLandingPagePhase4:
     def test_landing_version_in_footer(self):
         from propagul.server.landing import _render_landing_page
         html = _render_landing_page()
-        assert "v0.13.27" in html
+        assert "v0.13.34" in html
 
 
 class TestDashboardBackendBadge:
@@ -2803,13 +2803,27 @@ class TestRewriteBackendUrls:
         MeshAgent._rewrite_backend_urls(backends, "10.0.0.5")
         assert backends[0]["url"] == "http://10.0.0.5:11434"
 
-    def test_preserves_non_loopback_url(self):
+    def test_rewrites_non_loopback_private_ip(self):
+        """Non-loopback private IPs must also be rewritten to advertise_ip.
+
+        This covers WireGuard (10.100.0.x), Docker bridge (172.17.x.x),
+        and other VPN IPs that are not reachable from remote fleet nodes.
+        """
         from propagul.mesh.agent import MeshAgent
         backends = [
             {"backend": "ollama", "url": "http://192.168.1.20:11434", "models": []},
         ]
         MeshAgent._rewrite_backend_urls(backends, "192.168.1.50")
-        assert backends[0]["url"] == "http://192.168.1.20:11434"
+        assert backends[0]["url"] == "http://192.168.1.50:11434"
+
+    def test_preserves_url_matching_advertise_ip(self):
+        """URL already using the advertise_ip must not be double-rewritten."""
+        from propagul.mesh.agent import MeshAgent
+        backends = [
+            {"backend": "ollama", "url": "http://192.168.1.50:11434", "models": []},
+        ]
+        MeshAgent._rewrite_backend_urls(backends, "192.168.1.50")
+        assert backends[0]["url"] == "http://192.168.1.50:11434"
 
     def test_preserves_port(self):
         from propagul.mesh.agent import MeshAgent
@@ -2820,6 +2834,7 @@ class TestRewriteBackendUrls:
         assert backends[0]["url"] == "http://192.168.1.50:1234"
 
     def test_multiple_backends(self):
+        """All backends with non-advertise hostnames must be rewritten."""
         from propagul.mesh.agent import MeshAgent
         backends = [
             {"backend": "ollama", "url": "http://localhost:11434", "models": []},
@@ -2829,7 +2844,7 @@ class TestRewriteBackendUrls:
         MeshAgent._rewrite_backend_urls(backends, "10.0.1.100")
         assert backends[0]["url"] == "http://10.0.1.100:11434"
         assert backends[1]["url"] == "http://10.0.1.100:8000"
-        assert backends[2]["url"] == "http://192.168.1.20:1234"  # Unchanged
+        assert backends[2]["url"] == "http://10.0.1.100:1234"  # Also rewritten
 
     def test_noop_when_advertise_ip_is_loopback(self):
         from propagul.mesh.agent import MeshAgent

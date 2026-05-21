@@ -609,36 +609,40 @@ class MeshAgent:
     def _rewrite_backend_urls(
         backends: list[dict], advertise_ip: str,
     ) -> list[dict]:
-        """Replace localhost/127.0.0.1 in backend URLs with the LAN-routable IP.
+        """Replace non-advertise-ip hostnames in backend URLs with the advertise IP.
 
-        This is critical for multi-machine LAN fleets: when the heartbeat
+        This is critical for multi-machine fleets: when the heartbeat
         sends backend URLs to the dashboard, other agents receive these URLs
-        in the fleet routing table. If URLs contain 'localhost', remote
-        agents would connect to *their own* localhost instead of this node.
+        in the fleet routing table. Remote agents must be able to reach this
+        node's backends via the advertise IP.
 
-        Only rewrites loopback addresses. If the URL already has a routable
-        IP (e.g. 192.168.1.10), it is left unchanged.
+        Rewrites ANY hostname that is not already the advertise_ip. This covers:
+        - Loopback addresses (localhost, 127.0.0.1, ::1)
+        - WireGuard/VPN IPs (10.100.0.x) unreachable from other networks
+        - Docker bridge IPs (172.17.x.x, 192.168.x.x) unreachable externally
+
+        The local proxy continues to use the original URLs (from detection or
+        --ollama flag) for actual backend access. Only the heartbeat telemetry
+        is rewritten.
 
         Args:
             backends: List of backend telemetry dicts (each has a 'url' key).
-            advertise_ip: The LAN IP to substitute for loopback addresses.
+            advertise_ip: The fleet-routable IP (e.g. Tailscale 100.x.x.x).
 
         Returns:
             The same list with URLs rewritten in-place.
         """
         if not advertise_ip or advertise_ip == "127.0.0.1":
-            return backends  # No usable LAN IP — leave URLs as-is
+            return backends  # No usable routable IP — leave URLs as-is
 
-        _LOOPBACK = ("localhost", "127.0.0.1", "::1")
         for backend in backends:
             url = backend.get("url", "")
             if not url:
                 continue
             from urllib.parse import urlparse, urlunparse
             parsed = urlparse(url)
-            if parsed.hostname in _LOOPBACK:
+            if parsed.hostname and parsed.hostname != advertise_ip:
                 # Replace hostname, preserve port and scheme
-                # netloc = host:port, so rebuild it
                 port_suffix = f":{parsed.port}" if parsed.port else ""
                 new_netloc = f"{advertise_ip}{port_suffix}"
                 rewritten = urlunparse((

@@ -16,6 +16,8 @@ from dataclasses import dataclass, field
 from typing import Optional
 from urllib.parse import urlparse
 
+import ipaddress as _ipaddress
+
 logger = logging.getLogger("propagul.mesh.backends.ollama")
 
 DEFAULT_OLLAMA_URL = "http://localhost:11434"
@@ -28,19 +30,24 @@ _ALLOWED_HOSTS = frozenset({
     "0.0.0.0",
 })
 
-# Private IP prefixes (RFC 1918 + RFC 4193)
-_PRIVATE_PREFIXES = ("10.", "172.16.", "172.17.", "172.18.", "172.19.",
-                     "172.20.", "172.21.", "172.22.", "172.23.", "172.24.",
-                     "172.25.", "172.26.", "172.27.", "172.28.", "172.29.",
-                     "172.30.", "172.31.", "192.168.", "fd")
+# Tailscale/CGNAT range — Python <3.11 doesn't classify as is_private
+_CGNAT_NETWORK = _ipaddress.IPv4Network("100.64.0.0/10")
 
 
 def _validate_url(url: str) -> None:
     """Validate that a URL points to a local/private address.
 
-    Prevents SSRF (Server-Side Request Forgery) — an attacker-controlled
-    base_url could be used to probe internal services or cloud metadata
-    endpoints (e.g. 169.254.169.254).
+    Uses ipaddress module for robust validation — prevents SSRF bypasses
+    that would pass naive prefix checks.
+
+    Allowed:
+        - Known hostnames (localhost, 127.0.0.1, ::1, 0.0.0.0)
+        - Loopback (127.0.0.0/8, ::1)
+        - Private (RFC1918: 10/8, 172.16/12, 192.168/16; ULA: fc00::/7)
+        - CGNAT/Tailscale (100.64.0.0/10, RFC 6598)
+
+    Blocked explicitly:
+        - Link-local (169.254.0.0/16) — includes cloud metadata 169.254.169.254
 
     Raises ValueError if the URL points to a non-local address.
     """
@@ -50,12 +57,34 @@ def _validate_url(url: str) -> None:
     if host in _ALLOWED_HOSTS:
         return
 
-    if any(host.startswith(p) for p in _PRIVATE_PREFIXES):
+    try:
+        addr = _ipaddress.ip_address(host)
+    except ValueError:
+        raise ValueError(
+            f"SSRF blocked: '{host}' is not a recognized local hostname or IP. "
+            f"Only localhost and private/loopback IPs are allowed."
+        )
+
+    # Block link-local BEFORE is_private — Python 3.9 classifies
+    # 169.254.0.0/16 as is_private=True, which would allow the cloud
+    # metadata endpoint 169.254.169.254 through the guard.
+    if addr.is_link_local:
+        raise ValueError(
+            f"SSRF blocked: {host} is a link-local address. "
+            f"Cloud metadata endpoint 169.254.169.254 is explicitly blocked."
+        )
+
+    if addr.is_loopback or addr.is_private:
+        return
+
+    # Allow Tailscale/CGNAT (100.64.0.0/10) — not classified as
+    # is_private on Python <3.11.
+    if isinstance(addr, _ipaddress.IPv4Address) and addr in _CGNAT_NETWORK:
         return
 
     raise ValueError(
         f"SSRF blocked: {host} is not a local/private address. "
-        f"Only localhost, 127.0.0.1, and RFC1918 IPs are allowed."
+        f"Only localhost, loopback, RFC1918/ULA, and Tailscale (100.64/10) IPs are allowed."
     )
 
 
