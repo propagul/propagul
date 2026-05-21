@@ -112,3 +112,12 @@ CHANGELOG.md
 
 # Additional venv artifacts
 .venv311/
+
+# Scripts with server/internal references
+scripts/append_tests.py
+scripts/e2e_mock_agents.py
+scripts/runpod_agent.py
+scripts/runpod_create_pods.py
+scripts/runpod_manual_guide.md
+scripts/test_dashboard_e2e.py
+scripts/test_live_api.py
