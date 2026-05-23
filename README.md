@@ -1,7 +1,7 @@
 # Propagul Mesh
 
 > **One dashboard for all your local AI servers.**
-> See GPU temps, pull models remotely, route inference — without SSH, Grafana, or LiteLLM.
+> See GPU temps, pull models remotely, route inference, without SSH, Grafana, or LiteLLM.
 
 [![Tests](https://img.shields.io/badge/tests-408%20passed-brightgreen)]()
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)]()
@@ -11,16 +11,16 @@
 ## The Problem
 
 You run Ollama on your desktop, vLLM on a home server, and TGI on a rented GPU.
-To check GPU temps, pull a model, or see which node has capacity — you SSH into each one.
+To check GPU temps, pull a model, or see which node has capacity, you SSH into each one.
 When something goes down overnight, you find out the next morning.
 
-**Propagul Mesh** gives you one dashboard for all of them. Zero port-forwarding, zero Docker.
+**Propagul** gives you one dashboard for all of them. Zero port-forwarding, zero Docker.
 
 ## Quick Start
 
 ```bash
 # 1. Install
-pip install propagul-mesh
+pip install propagul
 
 # 2. Start the agent (auto-detects Ollama, vLLM, TGI, llama.cpp, LM Studio)
 propagul-mesh start --api-key pg_live_your_key
@@ -36,9 +36,9 @@ Your node appears in the dashboard within 10 seconds. GPU temps, VRAM, loaded mo
 | Feature | Description |
 |---|---|
 | **Fleet Dashboard** | Real-time node grid with VRAM, GPU util, temperature, and power sparklines |
-| **Remote Model Pull** | Click a button to `ollama pull llama3.1:8b` on any node — no SSH |
+| **Remote Model Pull** | Click a button to `ollama pull llama3.1:8b` on any node, no SSH |
 | **Multi-Backend** | Auto-detects Ollama, vLLM, TGI, llama.cpp, LM Studio on each machine |
-| **Local Proxy** | `localhost:8787/v1/chat/completions` — one OpenAI-compatible endpoint for all backends |
+| **Local Proxy** | `localhost:8787/v1/chat/completions`, one OpenAI-compatible endpoint for all backends |
 | **Config Sync** | Declare desired model state centrally. Nodes auto-pull and auto-delete to converge. CRDT-backed. |
 | **Health Alerts** | Email notification when a node goes offline (via Resend, 4h cooldown) |
 | **Prompt Privacy** | Prompts never leave your network. The cloud sees only telemetry (model names, VRAM, temps). |
@@ -87,7 +87,7 @@ Control plane in the cloud, data plane (your prompts) stays local.
 | **llama.cpp** | ✅ `/health` | ✅ `/v1/models` | ✅ | ✅ | Production |
 | **LM Studio** | ✅ `/v1/models` | ✅ | ✅ | ✅ | Production |
 
-Backend detection is automatic — the agent probes each port and identifies the backend
+Backend detection is automatic, the agent probes each port and identifies the backend
 by its health endpoint signature ([detect.py](python/propagul/mesh/backends/detect.py)).
 
 ## Local Proxy
@@ -148,10 +148,10 @@ Ollama's native API is automatically translated to OpenAI format.
 
 ### When to use what
 
-- **GPUStack** — Best for teams with K8s/Docker already running, need HuggingFace catalog integration.
-- **LiteLLM** — Best as a centralized API gateway with cost tracking (not a fleet manager).
-- **llama-dash** — Best for single-machine llama.cpp monitoring with SQLite logging.
-- **Propagul Mesh** — Best if you want `pip install` + one command to monitor multiple machines with different backends, and your prompts must stay local.
+- **GPUStack**, Best for teams with K8s/Docker already running, need HuggingFace catalog integration.
+- **LiteLLM**, Best as a centralized API gateway with cost tracking (not a fleet manager).
+- **llama-dash**, Best for single-machine llama.cpp monitoring with SQLite logging.
+- **Propagul Mesh**, Best if you want `pip install` + one command to monitor multiple machines with different backends, and your prompts must stay local.
 
 ---
 
@@ -176,4 +176,4 @@ CrewAI and LangGraph integrations. See [docs/](docs/) for full SDK documentation
 
 ## License
 
-MIT — Full source available.
+MIT Full source available.
